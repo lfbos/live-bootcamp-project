@@ -2,6 +2,16 @@ services:
   app-service:
     build:
       context: ./app-service # specify directory where local Dockerfile is located
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./app-service:/app
+    command: cargo watch -q -c -w src/ -x run
   auth-service:
     build:
       context: ./auth-service # specify directory where local Dockerfile is located
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./auth-service:/app
+    command: cargo watch -q -c -w src/ -x run
