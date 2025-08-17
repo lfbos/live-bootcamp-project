@@ -10,6 +10,7 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    environment: main
 
     steps:
       # Checkout code from the repository
@@ -67,6 +68,7 @@ jobs:
   deploy:
     needs: build
     runs-on: ubuntu-latest
+    environment: main
 
     steps:
     - name: Checkout code
