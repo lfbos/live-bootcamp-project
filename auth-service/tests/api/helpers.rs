@@ -1,7 +1,12 @@
-use auth_service::services::hashmap_user_store::HashmapUserStore;
-use auth_service::AppState;
-use auth_service::Application;
-use std::sync::{Arc, RwLock};
+use std::sync::Arc;
+use tokio::sync::RwLock;
+
+use auth_service::{
+    app_state::AppState, services::hashmap_user_store::HashmapUserStore, Application,
+};
+
+use uuid::Uuid;
+
 pub struct TestApp {
     pub address: String,
     pub http_client: reqwest::Client,
@@ -9,20 +14,21 @@ pub struct TestApp {
 
 impl TestApp {
     pub async fn new() -> Self {
-        let app_state = AppState::new(Arc::new(RwLock::new(HashmapUserStore::default())));
+        let user_store = Arc::new(RwLock::new(HashmapUserStore::default()));
+        let app_state = AppState::new(user_store);
+
         let app = Application::build(app_state, "127.0.0.1:0")
             .await
             .expect("Failed to build app");
+
         let address = format!("http://{}", app.address.clone());
 
-        // Run the auth service in a separate async task
-        // to avoid building the main test thread
         #[allow(clippy::let_underscore_future)]
         let _ = tokio::spawn(app.run());
 
         let http_client = reqwest::Client::new();
 
-        TestApp {
+        Self {
             address,
             http_client,
         }
@@ -48,13 +54,9 @@ impl TestApp {
             .expect("Failed to execute request.")
     }
 
-    pub async fn post_login<Body>(&self, body: &Body) -> reqwest::Response
-    where
-        Body: serde::Serialize,
-    {
+    pub async fn post_login(&self) -> reqwest::Response {
         self.http_client
             .post(&format!("{}/login", &self.address))
-            .json(body)
             .send()
             .await
             .expect("Failed to execute request.")
@@ -62,25 +64,23 @@ impl TestApp {
 
     pub async fn post_logout(&self) -> reqwest::Response {
         self.http_client
-            .post(&format!("{}/logout", &self.address))
+            .post(format!("{}/logout", &self.address))
             .send()
             .await
             .expect("Failed to execute request.")
     }
 
-    pub async fn post_verify_2fa(&self, body: &str) -> reqwest::Response {
+    pub async fn post_verify_2fa(&self) -> reqwest::Response {
         self.http_client
-            .post(&format!("{}/verify-2fa", &self.address))
-            .body(body.to_string())
+            .post(format!("{}/verify-2fa", &self.address))
             .send()
             .await
             .expect("Failed to execute request.")
     }
 
-    pub async fn post_verify_token(&self, body: &str) -> reqwest::Response {
+    pub async fn post_verify_token(&self) -> reqwest::Response {
         self.http_client
-            .post(&format!("{}/verify-token", &self.address))
-            .body(body.to_string())
+            .post(format!("{}/verify-token", &self.address))
             .send()
             .await
             .expect("Failed to execute request.")
@@ -88,5 +88,5 @@ impl TestApp {
 }
 
 pub fn get_random_email() -> String {
-    format!("{}@example.com", uuid::Uuid::new_v4())
+    format!("{}@example.com", Uuid::new_v4())
 }
