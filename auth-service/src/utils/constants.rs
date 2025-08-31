@@ -5,7 +5,6 @@ use std::env as std_env;
 // Define a lazily evaluated static. lazy_static is needed because std_env::var is not a const function.
 lazy_static! {
     pub static ref JWT_SECRET: String = set_token();
-    pub static ref APP_SERVICE_IP: String = set_app_service_ip();
 }
 
 fn set_token() -> String {
@@ -15,12 +14,6 @@ fn set_token() -> String {
         panic!("JWT_SECRET must not be empty.");
     }
     secret
-}
-
-fn set_app_service_ip() -> String {
-    dotenv().ok(); // Load environment variables
-    let ip = std_env::var(env::APP_SERVICE_IP_ENV_VAR).expect("APP_SERVICE_IP must be set.");
-    ip
 }
 
 pub mod env {
