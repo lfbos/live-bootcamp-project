@@ -1,5 +1,5 @@
-use auth_service::{ErrorResponse, routes::LoginResponse, utils::constants::JWT_COOKIE_NAME};
 use crate::helpers::{get_random_email, TestApp};
+use auth_service::{routes::LoginResponse, utils::constants::JWT_COOKIE_NAME, ErrorResponse};
 use uuid::Uuid;
 
 #[tokio::test]
