@@ -1,7 +1,6 @@
 use std::error::Error;
 
 use app_state::AppState;
-use utils::constants::APP_SERVICE_IP;
 
 use axum::{
     http::{HeaderValue, Method, StatusCode},
@@ -29,15 +28,10 @@ pub struct Application {
 impl Application {
     pub async fn build(app_state: AppState, address: &str) -> Result<Self, Box<dyn Error>> {
         // Allow the app service(running on our local machine and in production) to call the auth service
-        let mut allowed_origins = vec![
-            "http://localhost:8000".parse::<HeaderValue>()?
+        let allowed_origins = vec![
+            "http://localhost:8000".parse::<HeaderValue>()?,
+            "198.199.65.78:8000".parse::<HeaderValue>()?,
         ];
-
-        if !APP_SERVICE_IP.is_empty() {
-            let app_service_url = format!("http://{}:8000", APP_SERVICE_IP.as_str());
-            let header_value = app_service_url.parse::<HeaderValue>()?;
-            allowed_origins.push(header_value);
-        }
 
         let cors = CorsLayer::new()
             // Allow GET and POST requests

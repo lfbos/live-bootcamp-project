@@ -1,6 +1,6 @@
+use crate::helpers::{get_random_email, TestApp};
 use auth_service::{utils::constants::JWT_COOKIE_NAME, ErrorResponse};
 use reqwest::Url;
-use crate::helpers::{TestApp, get_random_email};
 
 #[tokio::test]
 async fn should_return_200_if_valid_jwt_cookie() {
