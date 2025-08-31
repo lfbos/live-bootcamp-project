@@ -55,3 +55,47 @@ async fn should_return_401_if_invalid_token() {
         "Invalid token".to_owned()
     );
 }
+
+#[tokio::test]
+async fn should_return_401_if_banned_token() {
+    let app = TestApp::new().await;
+
+    // Create a user
+    let email = get_random_email();
+    let password = "password123";
+    let signup_body = serde_json::json!({
+        "email": email,
+        "password": password,
+        "requires2FA": false
+    });
+    let response = app.post_signup(&signup_body).await;
+    assert_eq!(response.status().as_u16(), 201);
+
+    // Login to get a valid token
+    let login_body = serde_json::json!({
+        "email": email,
+        "password": password
+    });
+    let response = app.post_login(&login_body).await;
+    assert_eq!(response.status().as_u16(), 200);
+
+    let auth_cookie = response
+        .cookies()
+        .find(|c| c.name() == JWT_COOKIE_NAME)
+        .expect("Auth cookie not found in login response");
+    let token = auth_cookie.value().to_string();
+
+    // Add token to banned store
+    app.banned_token_store
+        .write()
+        .await
+        .add_token(token.clone())
+        .await;
+
+    // Verify token
+    let verify_token_body = serde_json::json!({ "token": token });
+    let response = app.post_verify_token(&verify_token_body).await;
+
+    // Assert
+    assert_eq!(response.status().as_u16(), 401);
+}
