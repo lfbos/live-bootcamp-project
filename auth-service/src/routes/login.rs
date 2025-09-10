@@ -35,11 +35,7 @@ pub async fn login(
 
     let updated_jar = jar.add(auth_cookie);
 
-    let response = Json(LoginResponse {
-        message: "Login successful!".to_string(),
-    });
-
-    (updated_jar, Ok((StatusCode::OK, response)))
+    (updated_jar, Ok(StatusCode::OK.into_response()))
 }
 
 #[derive(Deserialize)]
