@@ -1,6 +1,6 @@
-use super::{Email, Password, User};
-use uuid::Uuid;
 use rand::Rng;
+
+use super::{Email, Password, User};
 
 #[async_trait::async_trait]
 pub trait UserStore {
@@ -15,6 +15,17 @@ pub enum UserStoreError {
     UserAlreadyExists,
     UserNotFound,
     InvalidCredentials,
+    UnexpectedError,
+}
+
+#[async_trait::async_trait]
+pub trait BannedTokenStore {
+    async fn add_token(&mut self, token: String) -> Result<(), BannedTokenStoreError>;
+    async fn contains_token(&self, token: &str) -> Result<bool, BannedTokenStoreError>;
+}
+
+#[derive(Debug)]
+pub enum BannedTokenStoreError {
     UnexpectedError,
 }
 
@@ -52,7 +63,7 @@ impl LoginAttemptId {
 
 impl Default for LoginAttemptId {
     fn default() -> Self {
-        Self(Uuid::new_v4().to_string())
+        Self(uuid::Uuid::new_v4().to_string())
     }
 }
 
