@@ -1,5 +1,5 @@
 use axum::{extract::State, http::StatusCode, response::IntoResponse};
-use axum_extra::extract::{cookie::Cookie, CookieJar};
+use axum_extra::extract::{cookie, CookieJar};
 
 use crate::{
     app_state::AppState,
@@ -16,19 +16,27 @@ pub async fn logout(
         None => return (jar, Err(AuthAPIError::MissingToken)),
     };
 
+    // Validate token
     let token = cookie.value().to_owned();
-
-    match validate_token(&token, &state.banned_token_store).await {
-        Ok(_) => (),
+    let _ = match validate_token(&token, state.banned_token_store.clone()).await {
+        Ok(claims) => claims,
         Err(_) => return (jar, Err(AuthAPIError::InvalidToken)),
+    };
+
+    // Add token to banned list
+    if state
+        .banned_token_store
+        .write()
+        .await
+        .add_token(token.to_owned())
+        .await
+        .is_err()
+    {
+        return (jar, Err(AuthAPIError::UnexpectedError));
     }
 
-    // Add token to the banned token store
-    let mut banned_token_store = state.banned_token_store.write().await;
-    banned_token_store.add_token(token).await;
-
-    // Remove the JWT cookie from the `CookieJar`
-    let jar = jar.remove(Cookie::from(JWT_COOKIE_NAME));
+    // Remove jwt cookie
+    let jar = jar.remove(cookie::Cookie::from(JWT_COOKIE_NAME));
 
     (jar, Ok(StatusCode::OK))
 }
