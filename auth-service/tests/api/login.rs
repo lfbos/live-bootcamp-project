@@ -1,7 +1,6 @@
 use auth_service::{
     routes::TwoFactorAuthResponse, utils::constants::JWT_COOKIE_NAME, ErrorResponse,
 };
-use axum::http::response;
 
 use crate::helpers::{get_random_email, TestApp};
 
