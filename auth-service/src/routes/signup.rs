@@ -6,15 +6,17 @@ use crate::{
     domain::{AuthAPIError, Email, Password, User},
 };
 
-#[tracing::instrument(name = "Signup", skip_all, err(Debug))]
+use secrecy::Secret;
+
+#[tracing::instrument(name = "Signup", skip_all)]
 pub async fn signup(
     State(state): State<AppState>,
     Json(request): Json<SignupRequest>,
 ) -> Result<impl IntoResponse, AuthAPIError> {
     let email =
-        Email::parse(request.email.clone()).map_err(|_| AuthAPIError::InvalidCredentials)?;
+        Email::parse(Secret::new(request.email.clone())).map_err(|_| AuthAPIError::InvalidCredentials)?;
     let password =
-        Password::parse(request.password.clone()).map_err(|_| AuthAPIError::InvalidCredentials)?;
+        Password::parse(Secret::new(request.password.clone())).map_err(|_| AuthAPIError::InvalidCredentials)?;
 
     let user = User::new(email, password, request.requires_2fa);
 
@@ -24,8 +26,8 @@ pub async fn signup(
         return Err(AuthAPIError::UserAlreadyExists);
     }
 
-    if user_store.add_user(user).await.is_err() {
-        return Err(AuthAPIError::UnexpectedError);
+    if let Err(e) = user_store.add_user(user).await {
+        return Err(AuthAPIError::UnexpectedError(e.into()));
     }
 
     let response = Json(SignupResponse {

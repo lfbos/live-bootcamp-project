@@ -1,9 +1,8 @@
 use std::error::Error;
 
 use app_state::AppState;
-
 use axum::{
-    http::{HeaderValue, Method, StatusCode},
+    http::{Method, StatusCode},
     response::{IntoResponse, Response},
     routing::post,
     serve::Serve,
@@ -12,6 +11,7 @@ use axum::{
 use domain::AuthAPIError;
 use redis::{Client, RedisResult};
 use routes::{login, logout, signup, verify_2fa, verify_token};
+use secrecy::{ExposeSecret, Secret};
 use serde::{Deserialize, Serialize};
 use sqlx::{postgres::PgPoolOptions, PgPool};
 use tower_http::{cors::CorsLayer, services::ServeDir, trace::TraceLayer};
@@ -30,16 +30,13 @@ pub struct Application {
 
 impl Application {
     pub async fn build(app_state: AppState, address: &str) -> Result<Self, Box<dyn Error>> {
-        // Allow the app service(running on our local machine and in production) to call the auth service
-        let allowed_origins = vec![
-            "http://localhost:8000".parse::<HeaderValue>()?,
-            "198.199.65.78:8000".parse::<HeaderValue>()?,
+        let allowed_origins = [
+            "http://localhost:8000".parse()?,
+            "http://[YOUR_DROPLET_IP]:8000".parse()?,
         ];
 
         let cors = CorsLayer::new()
-            // Allow GET and POST requests
             .allow_methods([Method::GET, Method::POST])
-            // Allow cookies to be included in requests
             .allow_credentials(true)
             .allow_origin(allowed_origins);
 
@@ -57,7 +54,7 @@ impl Application {
                     .make_span_with(make_span_with_request_id)
                     .on_request(on_request)
                     .on_response(on_response),
-            ); // Add CORS config to our Axum router
+            );
 
         let listener = tokio::net::TcpListener::bind(address).await?;
         let address = listener.local_addr()?.to_string();
@@ -79,15 +76,17 @@ pub struct ErrorResponse {
 
 impl IntoResponse for AuthAPIError {
     fn into_response(self) -> Response {
+        log_error_chain(&self);
+
         let (status, error_message) = match self {
             AuthAPIError::UserAlreadyExists => (StatusCode::CONFLICT, "User already exists"),
             AuthAPIError::InvalidCredentials => (StatusCode::BAD_REQUEST, "Invalid credentials"),
             AuthAPIError::IncorrectCredentials => {
                 (StatusCode::UNAUTHORIZED, "Incorrect credentials")
             }
-            AuthAPIError::MissingToken => (StatusCode::BAD_REQUEST, "Missing token"),
-            AuthAPIError::InvalidToken => (StatusCode::UNAUTHORIZED, "Invalid token"),
-            AuthAPIError::UnexpectedError => {
+            AuthAPIError::MissingToken => (StatusCode::BAD_REQUEST, "Missing auth token"),
+            AuthAPIError::InvalidToken => (StatusCode::UNAUTHORIZED, "Invalid auth token"),
+            AuthAPIError::UnexpectedError(_) => {
                 (StatusCode::INTERNAL_SERVER_ERROR, "Unexpected error")
             }
         };
@@ -98,11 +97,28 @@ impl IntoResponse for AuthAPIError {
     }
 }
 
-pub async fn get_postgres_pool(url: &str) -> Result<PgPool, sqlx::Error> {
-    PgPoolOptions::new().max_connections(5).connect(url).await
+pub async fn get_postgres_pool(url: &Secret<String>) -> Result<PgPool, sqlx::Error> {
+    PgPoolOptions::new()
+        .max_connections(5)
+        .connect(url.expose_secret())
+        .await
 }
 
 pub fn get_redis_client(redis_hostname: String) -> RedisResult<Client> {
     let redis_url = format!("redis://{}/", redis_hostname);
-    Client::open(redis_url)
+    redis::Client::open(redis_url)
+}
+
+fn log_error_chain(e: &(dyn Error + 'static)) {
+    let separator =
+        "\n-----------------------------------------------------------------------------------\n";
+    let mut report = format!("{}{:?}\n", separator, e);
+    let mut current = e.source();
+    while let Some(cause) = current {
+        let str = format!("Caused by:\n\n{:?}", cause);
+        report = format!("{}\n{}", report, str);
+        current = cause.source();
+    }
+    report = format!("{}\n{}", report, separator);
+    tracing::error!("{}", report);
 }
